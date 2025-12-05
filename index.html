@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laritta Operations System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+    .loader { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyD66JBknPCHDzJ4NcLq3ql7T867TJpTbSY",
+      authDomain: "laritta-operations-system.firebaseapp.com",
+      projectId: "laritta-operations-system",
+      storageBucket: "laritta-operations-system.firebasestorage.app",
+      messagingSenderId: "660263238018",
+      appId: "1:660263238018:web:836be901d1451122867f9b"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+  </script>
+  
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const appId = "laritta-ops-v2";
+    
+    const OUTLETS = [
+      {code:'SBY-001',name:'Barata',area:'Surabaya'},{code:'SBY-002',name:'Candi',area:'Sidoarjo'},
+      {code:'SBY-003',name:'Cemengkalang',area:'Surabaya'},{code:'SBY-004',name:'Darmahusada',area:'Surabaya'},
+      {code:'TGR-001',name:'Borobudur',area:'Tangerang'}
+    ];
+    
+    const DEPARTMENTS = ['HRD','Procurement','Logistik','Produksi','R&D','Auditor','Sales Mobile','Sales Online'];
+    
+    function App() {
+      const [user, setUser] = useState(null);
+      const [requests, setRequests] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [viewMode, setViewMode] = useState('cabang');
+      
+      useEffect(() => {
+        auth.onAuthStateChanged((u) => {
+          setUser(u);
+          if (!u) auth.signInAnonymously();
+        });
+      }, []);
+      
+      useEffect(() => {
+        if (!user) return;
+        return db.collection('artifacts').doc(appId).collection('public')
+          .doc('data').collection('requests').orderBy('createdAt', 'desc')
+          .onSnapshot((snap) => {
+            setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            setLoading(false);
+          });
+      }, [user]);
+      
+      if (loading) return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
+      
+      return (
+        <div className="min-h-screen bg-slate-50 p-4">
+          <div className="max-w-6xl mx-auto">
+            <div className="bg-white p-6 rounded-xl shadow mb-6">
+              <h1 className="text-2xl font-bold">Laritta Operations System</h1>
+              <p className="text-slate-600">41 Outlet & 8 Departemen</p>
+            </div>
+            
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              <div className="bg-white p-4 rounded-xl">
+                <div className="text-sm text-slate-500">Total</div>
+                <div className="text-3xl font-bold">{requests.length}</div>
+              </div>
+              <div className="bg-yellow-50 p-4 rounded-xl">
+                <div className="text-sm text-yellow-700">Menunggu</div>
+                <div className="text-3xl font-bold">{requests.filter(r => r.status === 'pending').length}</div>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-xl">
+                <div className="text-sm text-blue-700">Diproses</div>
+                <div className="text-3xl font-bold">{requests.filter(r => r.status === 'process').length}</div>
+              </div>
+              <div className="bg-green-50 p-4 rounded-xl">
+                <div className="text-sm text-green-700">Selesai</div>
+                <div className="text-3xl font-bold">{requests.filter(r => r.status === 'done').length}</div>
+              </div>
+            </div>
+            
+            {requests.length === 0 ? (
+              <div className="bg-white p-20 rounded-xl text-center">
+                <div className="text-6xl mb-4">📋</div>
+                <h3 className="text-xl font-bold mb-2">Belum ada permintaan</h3>
+                <p className="text-slate-500">Klik "Buat Request" untuk memulai</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4">
+                {requests.map(req => (
+                  <div key={req.id} className="bg-white p-5 rounded-xl border">
+                    <h3 className="font-bold text-lg mb-2">{req.title}</h3>
+                    <p className="text-sm text-slate-600 mb-3">{req.description}</p>
+                    <div className="text-xs space-y-1">
+                      <div>👤 {req.requesterName}</div>
+                      <div>📍 {req.branch}</div>
+                      <div className={`inline-block px-2 py-1 rounded-full ${
+                        req.status === 'done' ? 'bg-green-100 text-green-700' :
+                        req.status === 'process' ? 'bg-blue-100 text-blue-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {req.status}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="mt-6 text-center text-sm text-slate-500">
+              <p>✅ Aplikasi terhubung dengan Firebase</p>
+              <p>Jumlah data: {requests.length} request</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
