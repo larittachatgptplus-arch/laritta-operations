@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laritta Operations</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-slate-50">
+  <div id="app"></div>
+  
+  <script>
+    // Firebase Config
+    const config = {
+      apiKey: "AIzaSyD66JBknPCHDzJ4NcLq3ql7T867TJpTbSY",
+      authDomain: "laritta-operations-system.firebaseapp.com",
+      projectId: "laritta-operations-system",
+      storageBucket: "laritta-operations-system.firebasestorage.app",
+      messagingSenderId: "660263238018",
+      appId: "1:660263238018:web:836be901d1451122867f9b"
+    };
+    
+    firebase.initializeApp(config);
+    const db = firebase.firestore();
+    const appId = "laritta-ops-v2";
+    
+    // Data
+    const OUTLETS = [
+      {c:'SBY-001',n:'Barata',a:'Surabaya'},{c:'SBY-002',n:'Candi',a:'Sidoarjo'},
+      {c:'SBY-003',n:'Cemengkalang',a:'Surabaya'},{c:'SBY-004',n:'Darmahusada',a:'Surabaya'},
+      {c:'SBY-005',n:'Darmo Permai',a:'Surabaya'},{c:'SBY-006',n:'Deltasari',a:'Sidoarjo'},
+      {c:'SBY-007',n:'Demak',a:'Surabaya'},{c:'SBY-008',n:'Diponegoro',a:'Sidoarjo'},
+      {c:'SBY-009',n:'Dukuh Kupang',a:'Surabaya'},{c:'SBY-010',n:'Gayung Sari',a:'Surabaya'},
+      {c:'SBY-011',n:'Gresik KB',a:'Gresik'},{c:'SBY-012',n:'Iskandar Muda',a:'Surabaya'},
+      {c:'TGR-001',n:'Borobudur',a:'Tangerang'},{c:'TGR-002',n:'Ciledug',a:'Tangerang'}
+    ];
+    const DEPT = ['HRD','Procurement','Logistik','Produksi','R&D','Auditor','Sales Mobile','Sales Online'];
+    
+    let requests = [];
+    let viewMode = 'outlet';
+    let showModal = false;
+    
+    // Load data
+    function loadData() {
+      db.collection('artifacts').doc(appId).collection('public')
+        .doc('data').collection('requests').orderBy('createdAt', 'desc')
+        .onSnapshot((snap) => {
+          requests = snap.docs.map(d => ({id: d.id, ...d.data()}));
+          render();
+        }, (err) => {
+          console.error(err);
+          render();
+        });
+    }
+    
+    // Submit
+    function submit(e) {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        title: form.title.value,
+        description: form.desc.value,
+        requesterName: form.name.value,
+        branch: form.cat.value === 'outlet' ? form.outlet.value : form.dept.value,
+        requesterCategory: form.cat.value,
+        type: form.type.value,
+        priority: 'medium',
+        status: 'pending',
+        comments: [],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      };
+      
+      db.collection('artifacts').doc(appId).collection('public')
+        .doc('data').collection('requests').add(data)
+        .then(() => {
+          alert('✅ Berhasil!');
+          showModal = false;
+          form.reset();
+          render();
+        })
+        .catch(err => alert('❌ Gagal: ' + err.message));
+    }
+    
+    // Update status
+    function updateStatus(id, status) {
+      db.collection('artifacts').doc(appId).collection('public')
+        .doc('data').collection('requests').doc(id)
+        .update({status: status})
+        .then(() => console.log('Updated'))
+        .catch(err => alert('Error: ' + err.message));
+    }
+    
+    // Render
+    function render() {
+      const pending = requests.filter(r => r.status === 'pending').length;
+      const process = requests.filter(r => r.status === 'process').length;
+      const done = requests.filter(r => r.status === 'done').length;
+      
+      document.getElementById('app').innerHTML = `
+        <div class="max-w-7xl mx-auto p-4">
+          <!-- Header -->
+          <div class="bg-white p-6 rounded-xl shadow-sm mb-6">
+            <h1 class="text-2xl font-bold text-slate-800">🏪 Laritta Operations</h1>
+            <p class="text-sm text-slate-500">Marketing Request System - 41 Outlet & 8 Dept</p>
+          </div>
+          
+          <!-- Mode Toggle -->
+          <div class="flex gap-2 mb-6">
+            <button onclick="viewMode='outlet';render()" 
+              class="px-4 py-2 rounded-lg font-bold ${viewMode==='outlet'?'bg-orange-600 text-white':'bg-white'}">
+              🏪 Mode Outlet/Dept
+            </button>
+            <button onclick="viewMode='marketing';render()" 
+              class="px-4 py-2 rounded-lg font-bold ${viewMode==='marketing'?'bg-blue-600 text-white':'bg-white'}">
+              🎯 Mode Marketing
+            </button>
+          </div>
+          
+          <!-- Stats -->
+          <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="bg-white p-5 rounded-xl shadow-sm">
+              <div class="text-xs text-slate-500 font-bold">TOTAL</div>
+              <div class="text-3xl font-bold">${requests.length}</div>
+            </div>
+            <div class="bg-yellow-50 p-5 rounded-xl border-2 border-yellow-200">
+              <div class="text-xs text-yellow-700 font-bold">MENUNGGU</div>
+              <div class="text-3xl font-bold text-yellow-800">${pending}</div>
+            </div>
+            <div class="bg-blue-50 p-5 rounded-xl border-2 border-blue-200">
+              <div class="text-xs text-blue-700 font-bold">DIPROSES</div>
+              <div class="text-3xl font-bold text-blue-800">${process}</div>
+            </div>
+            <div class="bg-green-50 p-5 rounded-xl border-2 border-green-200">
+              <div class="text-xs text-green-700 font-bold">SELESAI</div>
+              <div class="text-3xl font-bold text-green-800">${done}</div>
+            </div>
+          </div>
+          
+          <!-- Action Button -->
+          ${viewMode === 'outlet' ? `
+            <div class="mb-6">
+              <button onclick="showModal=true;render()" 
+                class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl font-bold">
+                ➕ Buat Request Baru
+              </button>
+            </div>
+          ` : ''}
+          
+          <!-- Requests List -->
+          ${requests.length === 0 ? `
+            <div class="bg-white p-20 rounded-2xl text-center">
+              <div class="text-6xl mb-4">📋</div>
+              <h3 class="text-xl font-bold mb-2">Belum ada permintaan</h3>
+              <p class="text-slate-500">Klik "Buat Request Baru" untuk memulai</p>
+            </div>
+          ` : `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              ${requests.map(r => `
+                <div class="bg-white p-5 rounded-xl border shadow-sm">
+                  <div class="mb-3">
+                    <span class="text-xs font-bold px-3 py-1 rounded-full ${
+                      r.status==='done'?'bg-green-100 text-green-700':
+                      r.status==='process'?'bg-blue-100 text-blue-700':'bg-yellow-100 text-yellow-700'
+                    }">
+                      ${r.status==='done'?'✅ Selesai':r.status==='process'?'⚙️ Diproses':'⏳ Menunggu'}
+                    </span>
+                  </div>
+                  <h3 class="font-bold text-lg mb-2">${r.title||'-'}</h3>
+                  <p class="text-sm text-slate-600 mb-3">${(r.description||'').substring(0,100)}...</p>
+                  <div class="text-xs space-y-1 mb-3">
+                    <div>👤 ${r.requesterName||'-'}</div>
+                    <div>📍 ${r.branch||'-'}</div>
+                  </div>
+                  ${viewMode === 'marketing' && r.status === 'pending' ? `
+                    <div class="grid grid-cols-2 gap-2">
+                      <button onclick="updateStatus('${r.id}','process')" 
+                        class="bg-blue-600 text-white py-2 rounded text-sm font-bold">Proses</button>
+                      <button onclick="updateStatus('${r.id}','rejected')" 
+                        class="border-2 py-2 rounded text-sm font-bold">Tolak</button>
+                    </div>
+                  ` : ''}
+                  ${viewMode === 'marketing' && r.status === 'process' ? `
+                    <button onclick="updateStatus('${r.id}','done')" 
+                      class="w-full bg-green-600 text-white py-2 rounded text-sm font-bold">✅ Selesai</button>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+          `}
+          
+          <!-- Modal -->
+          ${showModal ? `
+            <div class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+              <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b bg-orange-50 flex justify-between items-center">
+                  <h2 class="text-xl font-bold">📝 Form Request Baru</h2>
+                  <button onclick="showModal=false;render()" class="text-2xl">✕</button>
+                </div>
+                <form onsubmit="submit(event)" class="p-6 space-y-4">
+                  <input name="name" required placeholder="Nama Pemohon" class="w-full p-3 border-2 rounded-xl" />
+                  
+                  <select name="cat" id="cat" onchange="render()" class="w-full p-3 border-2 rounded-xl">
+                    <option value="outlet">🏪 Outlet</option>
+                    <option value="dept">🏢 Departemen</option>
+                  </select>
+                  
+                  <select name="outlet" id="outlet" class="w-full p-3 border-2 rounded-xl">
+                    ${OUTLETS.map(o => `<option value="${o.c} - ${o.n}">${o.c} - ${o.n}</option>`).join('')}
+                  </select>
+                  
+                  <select name="dept" id="dept" class="w-full p-3 border-2 rounded-xl" style="display:none">
+                    ${DEPT.map(d => `<option value="${d}">${d}</option>`).join('')}
+                  </select>
+                  
+                  <select name="type" class="w-full p-3 border-2 rounded-xl">
+                    <option value="cetak">🖨️ Cetak Banner/Menu</option>
+                    <option value="speaker">📢 Speaker/Sound</option>
+                    <option value="event">📅 Event Offline</option>
+                    <option value="digital">📱 Konten Digital</option>
+                  </select>
+                  
+                  <input name="title" required placeholder="Judul Request" class="w-full p-3 border-2 rounded-xl" />
+                  <textarea name="desc" required rows="4" placeholder="Deskripsi detail..." class="w-full p-3 border-2 rounded-xl"></textarea>
+                  
+                  <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="showModal=false;render()" 
+                      class="flex-1 py-3 border-2 rounded-xl font-bold">Batal</button>
+                    <button type="submit" 
+                      class="flex-1 py-3 bg-orange-600 text-white rounded-xl font-bold">Kirim</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+            <script>
+              document.getElementById('cat').onchange = function() {
+                const isOutlet = this.value === 'outlet';
+                document.getElementById('outlet').style.display = isOutlet ? 'block' : 'none';
+                document.getElementById('dept').style.display = isOutlet ? 'none' : 'block';
+              };
+            </script>
+          ` : ''}
+        </div>
+        
+        <div class="text-center py-6 text-sm text-slate-500">
+          <p>✅ Terhubung dengan Firebase Firestore</p>
+          <p>Project: laritta-operations-system</p>
+        </div>
+      `;
+    }
+    
+    // Start
+    loadData();
+    render();
+  </script>
+</body>
+</html>
