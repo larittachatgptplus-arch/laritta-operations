@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Laritta Operations System</title>
+  <title>Laritta Marketing System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
   <style>
     .gradient-red { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); }
+    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   </style>
 </head>
 <body class="bg-slate-50">
@@ -20,7 +21,7 @@
       <div class="flex items-center gap-4">
         <div class="text-5xl">🏪</div>
         <div>
-          <h1 class="text-3xl font-bold">Laritta Operations System</h1>
+          <h1 class="text-3xl font-bold">Laritta Marketing System</h1>
           <p class="text-red-100">Marketing Request System - 41 Outlet & 7 Departemen</p>
         </div>
       </div>
@@ -81,6 +82,17 @@
   <div id="requests-container"></div>
   <div class="text-center py-6 text-sm text-slate-600">
     <p id="status-text">Menghubungkan...</p>
+  </div>
+</div>
+
+<!-- Modal Detail Request -->
+<div id="modal-detail" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+  <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="gradient-red p-6 rounded-t-2xl flex justify-between text-white">
+      <h2 class="text-xl font-bold">📄 Detail Request</h2>
+      <button id="btn-close-detail" class="text-2xl">✕</button>
+    </div>
+    <div id="detail-content" class="p-6"></div>
   </div>
 </div>
 
@@ -200,13 +212,19 @@
     <div class="p-6">
       <div class="grid grid-cols-2 gap-6">
         <div>
-          <h3 class="font-bold mb-3">📍 Master Outlet</h3>
-          <div id="master-outlets" class="space-y-2 max-h-96 overflow-y-auto"></div>
+          <h3 class="font-bold mb-3 text-lg">📍 Master Outlet (41)</h3>
+          <div id="master-outlets" class="space-y-2 max-h-96 overflow-y-auto border rounded-lg p-3"></div>
         </div>
         <div>
-          <h3 class="font-bold mb-3">🏢 Master Departemen</h3>
-          <div id="master-depts" class="space-y-2 max-h-96 overflow-y-auto"></div>
-          <button id="btn-add-dept" class="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm">+ Tambah</button>
+          <h3 class="font-bold mb-3 text-lg">🏢 Master Departemen</h3>
+          <div id="master-depts" class="space-y-2 max-h-80 overflow-y-auto border rounded-lg p-3"></div>
+          <div class="mt-3 flex gap-2">
+            <input type="text" id="input-new-dept" placeholder="Nama departemen baru..." 
+              class="flex-1 p-2 border-2 rounded-lg focus:border-red-500 focus:outline-none" />
+            <button id="btn-add-dept" class="px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700">
+              + Tambah
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -296,11 +314,7 @@ let requests = [];
 let viewMode = 'outlet';
 let currentFilter = '';
 
-const modal = document.getElementById('modal');
-const modalMaster = document.getElementById('modal-master');
-const modalArchive = document.getElementById('modal-archive');
-
-// Set tanggal
+// Set dates
 const today = new Date().toISOString().split('T')[0];
 const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
 document.getElementById('input-date-request').value = new Date().toLocaleDateString('id-ID');
@@ -333,8 +347,7 @@ document.getElementById('select-category').addEventListener('change', (e) => {
 // Hub change
 document.getElementById('select-hub').addEventListener('change', (e) => {
   const hub = e.target.value;
-  const select = document.getElementById('select-outlet-form');
-  select.innerHTML = '<option value="">Pilih...</option>' + 
+  document.getElementById('select-outlet-form').innerHTML = '<option value="">Pilih...</option>' + 
     OUTLETS.filter(o => o.hub === hub).map(o => `<option value="${o.code}">${o.code} - ${o.name}</option>`).join('');
 });
 
@@ -343,13 +356,12 @@ document.getElementById('select-dept').addEventListener('change', (e) => {
   document.getElementById('input-dept-lainnya').classList.toggle('hidden', e.target.value !== 'Lainnya');
 });
 
-// Populate dept dropdown
+// Populate dropdowns
 function populateDeptDropdown() {
   document.getElementById('select-dept').innerHTML = '<option value="">Pilih...</option>' + 
     DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
 }
 
-// Filter dropdown
 function populateFilterDropdown() {
   let html = '<option value="">Pilih...</option><optgroup label="🏢 DEPARTEMEN">';
   DEPARTMENTS.forEach(d => html += `<option value="DEPT:${d}">${d}</option>`);
@@ -359,6 +371,59 @@ function populateFilterDropdown() {
   OUTLETS.filter(o => o.hub === 'Tangerang').forEach(o => html += `<option value="OUTLET:${o.code}">${o.code} - ${o.name}</option>`);
   html += '</optgroup>';
   document.getElementById('select-outlet').innerHTML = html;
+}
+
+// Show detail modal
+function showDetail(req) {
+  const priorityText = req.priority === 'tinggi' ? '🔴 Tinggi' : req.priority === 'sedang' ? '🟡 Sedang' : '🟢 Rendah';
+  const statusText = req.status === 'selesai' ? '✅ Selesai' :
+                    req.status === 'diproses' ? '⚙️ Diproses' :
+                    req.status === 'batal' ? '❌ Batal' : '⏳ Antrian';
+  
+  document.getElementById('detail-content').innerHTML = `
+    <div class="space-y-4">
+      <div>
+        <h3 class="text-2xl font-bold mb-2">${req.title}</h3>
+        <div class="flex gap-2 mb-4">
+          <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100">${statusText}</span>
+          <span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100">${priorityText}</span>
+        </div>
+      </div>
+      
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs font-bold text-slate-500">Pemohon</label>
+          <p class="font-medium">${req.requesterName}</p>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500">Outlet/Dept</label>
+          <p class="font-medium">${req.branch}</p>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500">Jenis</label>
+          <p class="font-medium">${req.type || '-'}</p>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500">Jumlah</label>
+          <p class="font-medium">${req.quantity || 1}</p>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500">Tanggal Permintaan</label>
+          <p class="font-medium">${req.dateRequest || '-'}</p>
+        </div>
+        <div>
+          <label class="text-xs font-bold text-slate-500">Tanggal Pemenuhan</label>
+          <p class="font-medium">${req.dateFulfill || '-'}</p>
+        </div>
+      </div>
+      
+      <div>
+        <label class="text-xs font-bold text-slate-500">Deskripsi Lengkap</label>
+        <p class="mt-2 p-4 bg-slate-50 rounded-lg">${req.description}</p>
+      </div>
+    </div>
+  `;
+  document.getElementById('modal-detail').classList.remove('hidden');
 }
 
 // Load data
@@ -373,7 +438,6 @@ function loadData() {
     }, (err) => {
       console.error(err);
       document.getElementById('status-text').textContent = '❌ Error: ' + err.message;
-      alert('Error koneksi Firebase. Pastikan Firestore Rules sudah dipublish!');
     });
 }
 
@@ -439,14 +503,16 @@ function renderRequests() {
       }
     }
     
+    const reqJson = JSON.stringify(r).replace(/"/g, '&quot;');
+    
     return `
-      <div class="bg-white rounded-xl border-2 shadow-sm p-5">
+      <div class="bg-white rounded-xl border-2 shadow-sm p-5 cursor-pointer hover:shadow-lg transition" onclick='showDetail(${reqJson})'>
         <div class="flex justify-between mb-3">
           <span class="text-xs font-bold px-3 py-1.5 rounded-full border-2 ${statusClass}">${statusText}</span>
           <span class="text-xs font-bold px-2 py-1 rounded">${priorityBadge}</span>
         </div>
         <h3 class="font-bold text-lg mb-2">${r.title}</h3>
-        <p class="text-sm text-slate-600 mb-3">${(r.description||'').substring(0,100)}...</p>
+        <p class="text-sm text-slate-600 mb-3 line-clamp-2">${r.description}</p>
         <div class="text-xs space-y-1 text-slate-600">
           <div>👤 ${r.requesterName}</div>
           <div>📍 ${r.branch}</div>
@@ -462,6 +528,7 @@ function renderRequests() {
 
 // Update status
 function updateStatus(id, status) {
+  event.stopPropagation();
   if (!confirm(`Yakin ubah status menjadi "${status}"?`)) return;
   db.collection('artifacts').doc(appId).collection('public').doc('data').collection('requests').doc(id)
     .update({status: status, updatedAt: firebase.firestore.FieldValue.serverTimestamp()})
@@ -512,14 +579,14 @@ document.getElementById('form-request').addEventListener('submit', (e) => {
   db.collection('artifacts').doc(appId).collection('public').doc('data').collection('requests').add(data)
     .then(() => {
       alert('✅ Request berhasil!');
-      modal.classList.add('hidden');
+      document.getElementById('modal').classList.add('hidden');
       document.getElementById('form-request').reset();
       document.getElementById('input-date-request').value = new Date().toLocaleDateString('id-ID');
       document.getElementById('input-date-fulfill').value = tomorrow;
     })
     .catch(err => {
       console.error(err);
-      alert('❌ Gagal: ' + err.message + '\n\nPastikan Firestore Rules sudah diupdate!');
+      alert('❌ Gagal: ' + err.message);
     });
 });
 
@@ -553,43 +620,82 @@ document.getElementById('select-outlet').addEventListener('change', (e) => {
 });
 
 // Modals
-document.getElementById('btn-create').addEventListener('click', () => modal.classList.remove('hidden'));
-document.getElementById('btn-close-modal').addEventListener('click', () => modal.classList.add('hidden'));
-document.getElementById('btn-cancel').addEventListener('click', () => modal.classList.add('hidden'));
-document.getElementById('btn-master').addEventListener('click', () => modalMaster.classList.remove('hidden'));
-document.getElementById('btn-close-master').addEventListener('click', () => modalMaster.classList.add('hidden'));
+document.getElementById('btn-create').addEventListener('click', () => document.getElementById('modal').classList.remove('hidden'));
+document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('modal').classList.add('hidden'));
+document.getElementById('btn-cancel').addEventListener('click', () => document.getElementById('modal').classList.add('hidden'));
+document.getElementById('btn-close-detail').addEventListener('click', () => document.getElementById('modal-detail').classList.add('hidden'));
+
+document.getElementById('btn-master').addEventListener('click', () => {
+  document.getElementById('modal-master').classList.remove('hidden');
+  loadMasterData();
+});
+document.getElementById('btn-close-master').addEventListener('click', () => document.getElementById('modal-master').classList.add('hidden'));
+
 document.getElementById('btn-archive').addEventListener('click', () => {
-  modalArchive.classList.remove('hidden');
+  document.getElementById('modal-archive').classList.remove('hidden');
   loadArchive();
 });
-document.getElementById('btn-close-archive').addEventListener('click', () => modalArchive.classList.add('hidden'));
+document.getElementById('btn-close-archive').addEventListener('click', () => document.getElementById('modal-archive').classList.add('hidden'));
 
-// Load archive
+// Master Data
+function loadMasterData() {
+  // Outlets
+  const outletHtml = OUTLETS.map(o => `
+    <div class="flex justify-between items-center p-2 bg-slate-50 rounded">
+      <span class="text-sm"><strong>${o.code}</strong> - ${o.name} (${o.area})</span>
+    </div>
+  `).join('');
+  document.getElementById('master-outlets').innerHTML = outletHtml;
+  
+  // Departments
+  const deptHtml = DEPARTMENTS.map((d, i) => `
+    <div class="flex justify-between items-center p-2 bg-slate-50 rounded">
+      <span class="text-sm">${d}</span>
+      <button onclick="deleteDept(${i})" class="text-red-600 text-xs font-bold hover:text-red-800">Hapus</button>
+    </div>
+  `).join('');
+  document.getElementById('master-depts').innerHTML = deptHtml;
+}
+
+document.getElementById('btn-add-dept').addEventListener('click', () => {
+  const input = document.getElementById('input-new-dept');
+  const newDept = input.value.trim();
+  if (!newDept) {
+    alert('Masukkan nama departemen!');
+    return;
+  }
+  if (DEPARTMENTS.includes(newDept)) {
+    alert('Departemen sudah ada!');
+    return;
+  }
+  DEPARTMENTS.push(newDept);
+  input.value = '';
+  loadMasterData();
+  populateDeptDropdown();
+  populateFilterDropdown();
+  alert('✅ Departemen ditambahkan!');
+});
+
+function deleteDept(index) {
+  if (!confirm('Yakin hapus departemen ini?')) return;
+  DEPARTMENTS.splice(index, 1);
+  loadMasterData();
+  populateDeptDropdown();
+  populateFilterDropdown();
+}
+
+// Archive
 function loadArchive() {
-  const months = [];
-  const container = document.getElementById('archive-container');
-  
-  requests.forEach(r => {
-    if (r.createdAt) {
-      const date = r.createdAt.toDate ? r.createdAt.toDate() : new Date();
-      const month = date.toLocaleDateString('id-ID', {year: 'numeric', month: 'long'});
-      if (!months.includes(month)) months.push(month);
-    }
-  });
-  
-  document.getElementById('select-month').innerHTML = '<option value="">Semua</option>' + 
-    months.map(m => `<option value="${m}">${m}</option>`).join('');
-  
   const html = requests.map(r => {
     const date = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleDateString('id-ID') : '-';
     return `
       <div class="border-b py-3 flex justify-between text-sm">
         <div><strong>${r.title}</strong> - ${r.branch}</div>
-        <div>${date}</div>
+        <div class="text-slate-500">${date}</div>
       </div>`;
   }).join('');
   
-  container.innerHTML = html || '<p class="text-center text-slate-500 py-10">Belum ada data</p>';
+  document.getElementById('archive-container').innerHTML = html || '<p class="text-center text-slate-500 py-10">Belum ada data</p>';
 }
 
 // Init
