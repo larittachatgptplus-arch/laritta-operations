@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laritta Operations System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <style>
+    .gradient-red { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); }
+  </style>
+</head>
+<body class="bg-slate-50">
+
+<div id="root" class="max-w-7xl mx-auto p-4">
+  <!-- Header -->
+  <div class="gradient-red p-6 rounded-xl shadow-lg mb-6 text-white">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="text-5xl">🏪</div>
+        <div>
+          <h1 class="text-3xl font-bold">Laritta Operations System</h1>
+          <p class="text-red-100">Marketing Request System - 41 Outlet & 7 Departemen</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button id="btn-master" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold text-sm">
+          ⚙️ Master Data
+        </button>
+        <button id="btn-archive" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg font-bold text-sm">
+          📁 Riwayat
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="bg-white p-5 rounded-xl shadow-sm border-2">
+      <div class="text-xs text-slate-500 font-bold">TOTAL</div>
+      <div id="stat-total" class="text-3xl font-bold">0</div>
+    </div>
+    <div class="bg-yellow-50 p-5 rounded-xl border-2 border-yellow-300">
+      <div class="text-xs text-yellow-700 font-bold">ANTRIAN</div>
+      <div id="stat-antrian" class="text-3xl font-bold text-yellow-800">0</div>
+    </div>
+    <div class="bg-blue-50 p-5 rounded-xl border-2 border-blue-300">
+      <div class="text-xs text-blue-700 font-bold">DIPROSES</div>
+      <div id="stat-diproses" class="text-3xl font-bold text-blue-800">0</div>
+    </div>
+    <div class="bg-green-50 p-5 rounded-xl border-2 border-green-300">
+      <div class="text-xs text-green-700 font-bold">SELESAI</div>
+      <div id="stat-selesai" class="text-3xl font-bold text-green-800">0</div>
+    </div>
+  </div>
+
+  <!-- Mode & Filter -->
+  <div class="bg-white p-4 rounded-xl shadow-sm mb-6 flex flex-wrap gap-4 items-center justify-between">
+    <div class="flex gap-2">
+      <button id="btn-outlet" class="px-6 py-3 rounded-lg font-bold bg-red-600 text-white shadow-lg">
+        🏪 Mode Outlet/Dept
+      </button>
+      <button id="btn-marketing" class="px-6 py-3 rounded-lg font-bold bg-slate-100 text-slate-600 border-2">
+        🎯 Mode Marketing
+      </button>
+    </div>
+    <div id="filter-container" class="hidden">
+      <select id="select-outlet" class="px-4 py-3 border-2 border-red-200 rounded-lg font-medium bg-white">
+        <option value="">Pilih Outlet/Dept...</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="create-btn-container" class="mb-6">
+    <button id="btn-create" class="gradient-red text-white px-6 py-3 rounded-xl font-bold shadow-lg">
+      ➕ Buat Request Baru
+    </button>
+  </div>
+
+  <div id="requests-container"></div>
+  <div class="text-center py-6 text-sm text-slate-600">
+    <p id="status-text">Menghubungkan...</p>
+  </div>
+</div>
+
+<!-- Modal Form Request -->
+<div id="modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 overflow-y-auto">
+  <div class="bg-white rounded-2xl max-w-2xl w-full my-8">
+    <div class="gradient-red p-6 rounded-t-2xl flex justify-between text-white">
+      <h2 class="text-xl font-bold">📝 Form Request Baru</h2>
+      <button id="btn-close-modal" class="text-2xl">✕</button>
+    </div>
+    <form id="form-request" class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+      <div>
+        <label class="block text-sm font-bold mb-2">Nama Pemohon *</label>
+        <input type="text" id="input-name" required class="w-full p-3 border-2 rounded-xl focus:border-red-500 focus:outline-none" />
+      </div>
+      
+      <div>
+        <label class="block text-sm font-bold mb-2">Kategori Pemohon *</label>
+        <select id="select-category" required class="w-full p-3 border-2 rounded-xl focus:border-red-500">
+          <option value="">Pilih...</option>
+          <option value="outlet">🏪 Outlet</option>
+          <option value="dept">🏢 Departemen</option>
+        </select>
+      </div>
+      
+      <div id="outlet-group" class="hidden">
+        <label class="block text-sm font-bold mb-2">HUB *</label>
+        <select id="select-hub" class="w-full p-3 border-2 rounded-xl focus:border-red-500 mb-3">
+          <option value="">Pilih HUB...</option>
+          <option value="Surabaya Raya">Surabaya Raya</option>
+          <option value="Tangerang">Tangerang</option>
+        </select>
+        <label class="block text-sm font-bold mb-2">Outlet *</label>
+        <select id="select-outlet-form" class="w-full p-3 border-2 rounded-xl focus:border-red-500">
+          <option value="">Pilih...</option>
+        </select>
+      </div>
+      
+      <div id="dept-group" class="hidden">
+        <label class="block text-sm font-bold mb-2">Departemen *</label>
+        <select id="select-dept" class="w-full p-3 border-2 rounded-xl focus:border-red-500">
+          <option value="">Pilih...</option>
+        </select>
+        <input type="text" id="input-dept-lainnya" placeholder="Sebutkan departemen lain..." 
+          class="w-full p-3 border-2 rounded-xl mt-2 hidden focus:border-red-500 focus:outline-none" />
+      </div>
+      
+      <div>
+        <label class="block text-sm font-bold mb-2">Jenis Request *</label>
+        <select id="select-type" required class="w-full p-3 border-2 rounded-xl focus:border-red-500">
+          <option value="cetak_banner">🖨️ Cetak Banner/Menu</option>
+          <option value="cetak_tencard">🎴 Cetak Tencard</option>
+          <option value="stiker">📋 Stiker</option>
+          <option value="speaker">📢 Speaker/Sound</option>
+          <option value="event">📅 Event Offline</option>
+          <option value="digital">📱 Konten Digital</option>
+          <option value="lainnya">📦 Lainnya</option>
+        </select>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-bold mb-2">Prioritas *</label>
+        <div class="grid grid-cols-3 gap-3">
+          <button type="button" class="priority-btn p-3 border-2 rounded-xl font-bold" data-priority="rendah">
+            🟢 Rendah
+          </button>
+          <button type="button" class="priority-btn p-3 border-2 rounded-xl font-bold bg-yellow-50 border-yellow-400" data-priority="sedang">
+            🟡 Sedang
+          </button>
+          <button type="button" class="priority-btn p-3 border-2 rounded-xl font-bold" data-priority="tinggi">
+            🔴 Tinggi
+          </button>
+        </div>
+        <input type="hidden" id="input-priority" value="sedang" />
+      </div>
+      
+      <div>
+        <label class="block text-sm font-bold mb-2">Judul Request *</label>
+        <input type="text" id="input-title" required class="w-full p-3 border-2 rounded-xl focus:border-red-500 focus:outline-none" />
+      </div>
+      
+      <div>
+        <label class="block text-sm font-bold mb-2">Jumlah *</label>
+        <input type="number" id="input-qty" required min="1" value="1" class="w-full p-3 border-2 rounded-xl focus:border-red-500 focus:outline-none" />
+      </div>
+      
+      <div>
+        <label class="block text-sm font-bold mb-2">Deskripsi Detail *</label>
+        <textarea id="input-desc" required rows="4" class="w-full p-3 border-2 rounded-xl focus:border-red-500 focus:outline-none"></textarea>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-bold mb-2">Tanggal Permintaan</label>
+        <input type="text" id="input-date-request" readonly class="w-full p-3 border-2 rounded-xl bg-slate-100" />
+      </div>
+      
+      <div>
+        <label class="block text-sm font-bold mb-2">Tanggal Pemenuhan *</label>
+        <input type="date" id="input-date-fulfill" required class="w-full p-3 border-2 rounded-xl focus:border-red-500 focus:outline-none" />
+      </div>
+      
+      <div class="flex gap-3 pt-4 border-t">
+        <button type="button" id="btn-cancel" class="flex-1 py-3 border-2 rounded-xl font-bold">Batal</button>
+        <button type="submit" class="flex-1 py-3 gradient-red text-white rounded-xl font-bold shadow-lg">Kirim Request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Master Data -->
+<div id="modal-master" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+  <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="gradient-red p-6 rounded-t-2xl flex justify-between text-white">
+      <h2 class="text-xl font-bold">⚙️ Master Data</h2>
+      <button id="btn-close-master" class="text-2xl">✕</button>
+    </div>
+    <div class="p-6">
+      <div class="grid grid-cols-2 gap-6">
+        <div>
+          <h3 class="font-bold mb-3">📍 Master Outlet</h3>
+          <div id="master-outlets" class="space-y-2 max-h-96 overflow-y-auto"></div>
+        </div>
+        <div>
+          <h3 class="font-bold mb-3">🏢 Master Departemen</h3>
+          <div id="master-depts" class="space-y-2 max-h-96 overflow-y-auto"></div>
+          <button id="btn-add-dept" class="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg font-bold text-sm">+ Tambah</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Archive -->
+<div id="modal-archive" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+  <div class="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="gradient-red p-6 rounded-t-2xl flex justify-between text-white">
+      <h2 class="text-xl font-bold">📁 Riwayat Request</h2>
+      <button id="btn-close-archive" class="text-2xl">✕</button>
+    </div>
+    <div class="p-6">
+      <div class="mb-4">
+        <label class="block text-sm font-bold mb-2">Pilih Bulan</label>
+        <select id="select-month" class="px-4 py-2 border-2 rounded-lg">
+          <option value="">Semua</option>
+        </select>
+      </div>
+      <div id="archive-container"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const config = {
+  apiKey: "AIzaSyD66JBknPCHDzJ4NcLq3ql7T867TJpTbSY",
+  authDomain: "laritta-operations-system.firebaseapp.com",
+  projectId: "laritta-operations-system",
+  storageBucket: "laritta-operations-system.firebasestorage.app",
+  messagingSenderId: "660263238018",
+  appId: "1:660263238018:web:836be901d1451122867f9b"
+};
+
+firebase.initializeApp(config);
+const db = firebase.firestore();
+const appId = "laritta-ops-v4";
+
+let OUTLETS = [
+  {code:'SBY-001',name:'Barata',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-002',name:'Candi',hub:'Surabaya Raya',area:'Sidoarjo'},
+  {code:'SBY-003',name:'Cemengkalang',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-004',name:'Darmahusada',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-005',name:'Darmo Permai',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-006',name:'Deltasari',hub:'Surabaya Raya',area:'Sidoarjo'},
+  {code:'SBY-007',name:'Demak',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-008',name:'Diponegoro',hub:'Surabaya Raya',area:'Sidoarjo'},
+  {code:'SBY-009',name:'Dukuh Kupang',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-010',name:'Gayung Sari',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-011',name:'Gresik Kota Baru',hub:'Surabaya Raya',area:'Gresik'},
+  {code:'SBY-012',name:'Iskandar Muda',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-013',name:'Kapas Krampung',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-014',name:'Kedung Cowek',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-015',name:'Ketintang',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-016',name:'Krian',hub:'Surabaya Raya',area:'Sidoarjo'},
+  {code:'SBY-017',name:'Kutai',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-018',name:'Manukan',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-019',name:'Menganti',hub:'Surabaya Raya',area:'Gresik'},
+  {code:'SBY-020',name:'Mulyosari',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-021',name:'Nias',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-022',name:'Perak',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-023',name:'Rungkut',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-024',name:'Rungkut Tengah',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-025',name:'Sepanjang',hub:'Surabaya Raya',area:'Sidoarjo'},
+  {code:'SBY-026',name:'ST. Gubeng',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-027',name:'Sukodono',hub:'Surabaya Raya',area:'Sidoarjo'},
+  {code:'SBY-028',name:'Tanggulangin',hub:'Surabaya Raya',area:'Sidoarjo'},
+  {code:'SBY-029',name:'Tropodo',hub:'Surabaya Raya',area:'Sidoarjo'},
+  {code:'SBY-030',name:'Wage',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-031',name:'Wiyung',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-032',name:'Bangkalan',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'SBY-033',name:'Panglima Sudirman',hub:'Surabaya Raya',area:'Surabaya'},
+  {code:'TGR-001',name:'Borobudur',hub:'Tangerang',area:'Tangerang'},
+  {code:'TGR-002',name:'Ciledug',hub:'Tangerang',area:'Tangerang'},
+  {code:'TGR-003',name:'Halim',hub:'Tangerang',area:'Tangerang'},
+  {code:'TGR-004',name:'Merdeka',hub:'Tangerang',area:'Tangerang'},
+  {code:'TGR-005',name:'Periuk',hub:'Tangerang',area:'Tangerang'},
+  {code:'TGR-006',name:'Poris',hub:'Tangerang',area:'Tangerang'},
+  {code:'TGR-007',name:'Raden Saleh',hub:'Tangerang',area:'Tangerang'},
+  {code:'TGR-008',name:'Graha Raya',hub:'Tangerang',area:'Tangerang'}
+];
+
+let DEPARTMENTS = ['IT','HRD','Finance Accounting','Procurement','Logistik','Sales Mobile','Lainnya'];
+
+let requests = [];
+let viewMode = 'outlet';
+let currentFilter = '';
+
+const modal = document.getElementById('modal');
+const modalMaster = document.getElementById('modal-master');
+const modalArchive = document.getElementById('modal-archive');
+
+// Set tanggal
+const today = new Date().toISOString().split('T')[0];
+const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+document.getElementById('input-date-request').value = new Date().toLocaleDateString('id-ID');
+document.getElementById('input-date-fulfill').min = tomorrow;
+document.getElementById('input-date-fulfill').value = tomorrow;
+
+// Priority buttons
+document.querySelectorAll('.priority-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.priority-btn').forEach(b => {
+      b.classList.remove('bg-green-50','bg-yellow-50','bg-red-50','border-green-400','border-yellow-400','border-red-400');
+      b.classList.add('border-slate-200');
+    });
+    const priority = btn.dataset.priority;
+    if(priority === 'rendah') btn.classList.add('bg-green-50','border-green-400');
+    else if(priority === 'sedang') btn.classList.add('bg-yellow-50','border-yellow-400');
+    else btn.classList.add('bg-red-50','border-red-400');
+    btn.classList.remove('border-slate-200');
+    document.getElementById('input-priority').value = priority;
+  });
+});
+
+// Category change
+document.getElementById('select-category').addEventListener('change', (e) => {
+  const cat = e.target.value;
+  document.getElementById('outlet-group').classList.toggle('hidden', cat !== 'outlet');
+  document.getElementById('dept-group').classList.toggle('hidden', cat !== 'dept');
+});
+
+// Hub change
+document.getElementById('select-hub').addEventListener('change', (e) => {
+  const hub = e.target.value;
+  const select = document.getElementById('select-outlet-form');
+  select.innerHTML = '<option value="">Pilih...</option>' + 
+    OUTLETS.filter(o => o.hub === hub).map(o => `<option value="${o.code}">${o.code} - ${o.name}</option>`).join('');
+});
+
+// Dept change
+document.getElementById('select-dept').addEventListener('change', (e) => {
+  document.getElementById('input-dept-lainnya').classList.toggle('hidden', e.target.value !== 'Lainnya');
+});
+
+// Populate dept dropdown
+function populateDeptDropdown() {
+  document.getElementById('select-dept').innerHTML = '<option value="">Pilih...</option>' + 
+    DEPARTMENTS.map(d => `<option value="${d}">${d}</option>`).join('');
+}
+
+// Filter dropdown
+function populateFilterDropdown() {
+  let html = '<option value="">Pilih...</option><optgroup label="🏢 DEPARTEMEN">';
+  DEPARTMENTS.forEach(d => html += `<option value="DEPT:${d}">${d}</option>`);
+  html += '</optgroup><optgroup label="📍 SURABAYA RAYA">';
+  OUTLETS.filter(o => o.hub === 'Surabaya Raya').forEach(o => html += `<option value="OUTLET:${o.code}">${o.code} - ${o.name}</option>`);
+  html += '</optgroup><optgroup label="📍 TANGERANG">';
+  OUTLETS.filter(o => o.hub === 'Tangerang').forEach(o => html += `<option value="OUTLET:${o.code}">${o.code} - ${o.name}</option>`);
+  html += '</optgroup>';
+  document.getElementById('select-outlet').innerHTML = html;
+}
+
+// Load data
+function loadData() {
+  db.collection('artifacts').doc(appId).collection('public').doc('data').collection('requests')
+    .orderBy('createdAt', 'desc')
+    .onSnapshot((snap) => {
+      requests = snap.docs.map(d => ({id: d.id, ...d.data()}));
+      updateStats();
+      renderRequests();
+      document.getElementById('status-text').textContent = '✅ Terhubung - Total: ' + requests.length;
+    }, (err) => {
+      console.error(err);
+      document.getElementById('status-text').textContent = '❌ Error: ' + err.message;
+      alert('Error koneksi Firebase. Pastikan Firestore Rules sudah dipublish!');
+    });
+}
+
+// Update stats
+function updateStats() {
+  let filtered = requests;
+  if (viewMode === 'outlet' && currentFilter) {
+    filtered = requests.filter(r => {
+      if (currentFilter.startsWith('OUTLET:')) return r.outletCode === currentFilter.replace('OUTLET:', '');
+      if (currentFilter.startsWith('DEPT:')) return r.department === currentFilter.replace('DEPT:', '');
+      return true;
+    });
+  }
+  document.getElementById('stat-total').textContent = filtered.length;
+  document.getElementById('stat-antrian').textContent = filtered.filter(r => r.status === 'antrian').length;
+  document.getElementById('stat-diproses').textContent = filtered.filter(r => r.status === 'diproses').length;
+  document.getElementById('stat-selesai').textContent = filtered.filter(r => r.status === 'selesai').length;
+}
+
+// Render requests
+function renderRequests() {
+  let filtered = requests;
+  if (viewMode === 'outlet' && currentFilter) {
+    filtered = requests.filter(r => {
+      if (currentFilter.startsWith('OUTLET:')) return r.outletCode === currentFilter.replace('OUTLET:', '');
+      if (currentFilter.startsWith('DEPT:')) return r.department === currentFilter.replace('DEPT:', '');
+      return true;
+    });
+  }
+  
+  if (filtered.length === 0) {
+    document.getElementById('requests-container').innerHTML = `
+      <div class="bg-white p-20 rounded-2xl text-center border-2 border-dashed">
+        <div class="text-6xl mb-4">📋</div>
+        <h3 class="text-xl font-bold mb-2">Belum ada permintaan</h3>
+      </div>`;
+    return;
+  }
+
+  const html = filtered.map(r => {
+    const priorityBadge = r.priority === 'tinggi' ? '🔴 Tinggi' : r.priority === 'sedang' ? '🟡 Sedang' : '🟢 Rendah';
+    const statusClass = r.status === 'selesai' ? 'bg-green-100 text-green-700' :
+                       r.status === 'diproses' ? 'bg-blue-100 text-blue-700' :
+                       r.status === 'batal' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
+    const statusText = r.status === 'selesai' ? '✅ Selesai' :
+                      r.status === 'diproses' ? '⚙️ Diproses' :
+                      r.status === 'batal' ? '❌ Batal' : '⏳ Antrian';
+    
+    let buttons = '';
+    if (viewMode === 'marketing') {
+      if (r.status === 'antrian') {
+        buttons = `
+          <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t">
+            <button onclick="updateStatus('${r.id}','diproses')" class="bg-blue-600 text-white py-2 rounded-lg text-sm font-bold">Proses</button>
+            <button onclick="updateStatus('${r.id}','batal')" class="bg-red-600 text-white py-2 rounded-lg text-sm font-bold">Batal</button>
+          </div>`;
+      } else if (r.status === 'diproses') {
+        buttons = `
+          <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t">
+            <button onclick="updateStatus('${r.id}','selesai')" class="bg-green-600 text-white py-2 rounded-lg text-sm font-bold">✅ Selesai</button>
+            <button onclick="updateStatus('${r.id}','batal')" class="bg-red-600 text-white py-2 rounded-lg text-sm font-bold">Batal</button>
+          </div>`;
+      }
+    }
+    
+    return `
+      <div class="bg-white rounded-xl border-2 shadow-sm p-5">
+        <div class="flex justify-between mb-3">
+          <span class="text-xs font-bold px-3 py-1.5 rounded-full border-2 ${statusClass}">${statusText}</span>
+          <span class="text-xs font-bold px-2 py-1 rounded">${priorityBadge}</span>
+        </div>
+        <h3 class="font-bold text-lg mb-2">${r.title}</h3>
+        <p class="text-sm text-slate-600 mb-3">${(r.description||'').substring(0,100)}...</p>
+        <div class="text-xs space-y-1 text-slate-600">
+          <div>👤 ${r.requesterName}</div>
+          <div>📍 ${r.branch}</div>
+          <div>📦 Jumlah: ${r.quantity||1}</div>
+          <div>📅 Pemenuhan: ${r.dateFulfill||'-'}</div>
+        </div>
+        ${buttons}
+      </div>`;
+  }).join('');
+  
+  document.getElementById('requests-container').innerHTML = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">' + html + '</div>';
+}
+
+// Update status
+function updateStatus(id, status) {
+  if (!confirm(`Yakin ubah status menjadi "${status}"?`)) return;
+  db.collection('artifacts').doc(appId).collection('public').doc('data').collection('requests').doc(id)
+    .update({status: status, updatedAt: firebase.firestore.FieldValue.serverTimestamp()})
+    .then(() => console.log('Updated'))
+    .catch(err => alert('Error: ' + err.message));
+}
+
+// Form submit
+document.getElementById('form-request').addEventListener('submit', (e) => {
+  e.preventDefault();
+  
+  const category = document.getElementById('select-category').value;
+  let branch = '', outletCode = '', department = '';
+  
+  if (category === 'outlet') {
+    const code = document.getElementById('select-outlet-form').value;
+    if (!code) { alert('Pilih outlet!'); return; }
+    const outlet = OUTLETS.find(o => o.code === code);
+    branch = `${outlet.code} - ${outlet.name}`;
+    outletCode = outlet.code;
+  } else if (category === 'dept') {
+    const deptSelect = document.getElementById('select-dept').value;
+    department = deptSelect === 'Lainnya' ? document.getElementById('input-dept-lainnya').value : deptSelect;
+    if (!department) { alert('Pilih departemen!'); return; }
+    branch = department;
+  } else {
+    alert('Pilih kategori!');
+    return;
+  }
+  
+  const data = {
+    title: document.getElementById('input-title').value,
+    description: document.getElementById('input-desc').value,
+    requesterName: document.getElementById('input-name').value,
+    requesterCategory: category,
+    branch: branch,
+    outletCode: outletCode,
+    department: department,
+    type: document.getElementById('select-type').value,
+    priority: document.getElementById('input-priority').value,
+    quantity: parseInt(document.getElementById('input-qty').value),
+    dateRequest: today,
+    dateFulfill: document.getElementById('input-date-fulfill').value,
+    status: 'antrian',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  
+  db.collection('artifacts').doc(appId).collection('public').doc('data').collection('requests').add(data)
+    .then(() => {
+      alert('✅ Request berhasil!');
+      modal.classList.add('hidden');
+      document.getElementById('form-request').reset();
+      document.getElementById('input-date-request').value = new Date().toLocaleDateString('id-ID');
+      document.getElementById('input-date-fulfill').value = tomorrow;
+    })
+    .catch(err => {
+      console.error(err);
+      alert('❌ Gagal: ' + err.message + '\n\nPastikan Firestore Rules sudah diupdate!');
+    });
+});
+
+// Mode toggle
+document.getElementById('btn-outlet').addEventListener('click', () => {
+  viewMode = 'outlet';
+  document.getElementById('btn-outlet').className = 'px-6 py-3 rounded-lg font-bold bg-red-600 text-white shadow-lg';
+  document.getElementById('btn-marketing').className = 'px-6 py-3 rounded-lg font-bold bg-slate-100 text-slate-600 border-2';
+  document.getElementById('create-btn-container').classList.remove('hidden');
+  document.getElementById('filter-container').classList.remove('hidden');
+  renderRequests();
+  updateStats();
+});
+
+document.getElementById('btn-marketing').addEventListener('click', () => {
+  viewMode = 'marketing';
+  currentFilter = '';
+  document.getElementById('select-outlet').value = '';
+  document.getElementById('btn-marketing').className = 'px-6 py-3 rounded-lg font-bold bg-red-600 text-white shadow-lg';
+  document.getElementById('btn-outlet').className = 'px-6 py-3 rounded-lg font-bold bg-slate-100 text-slate-600 border-2';
+  document.getElementById('create-btn-container').classList.add('hidden');
+  document.getElementById('filter-container').classList.add('hidden');
+  renderRequests();
+  updateStats();
+});
+
+document.getElementById('select-outlet').addEventListener('change', (e) => {
+  currentFilter = e.target.value;
+  renderRequests();
+  updateStats();
+});
+
+// Modals
+document.getElementById('btn-create').addEventListener('click', () => modal.classList.remove('hidden'));
+document.getElementById('btn-close-modal').addEventListener('click', () => modal.classList.add('hidden'));
+document.getElementById('btn-cancel').addEventListener('click', () => modal.classList.add('hidden'));
+document.getElementById('btn-master').addEventListener('click', () => modalMaster.classList.remove('hidden'));
+document.getElementById('btn-close-master').addEventListener('click', () => modalMaster.classList.add('hidden'));
+document.getElementById('btn-archive').addEventListener('click', () => {
+  modalArchive.classList.remove('hidden');
+  loadArchive();
+});
+document.getElementById('btn-close-archive').addEventListener('click', () => modalArchive.classList.add('hidden'));
+
+// Load archive
+function loadArchive() {
+  const months = [];
+  const container = document.getElementById('archive-container');
+  
+  requests.forEach(r => {
+    if (r.createdAt) {
+      const date = r.createdAt.toDate ? r.createdAt.toDate() : new Date();
+      const month = date.toLocaleDateString('id-ID', {year: 'numeric', month: 'long'});
+      if (!months.includes(month)) months.push(month);
+    }
+  });
+  
+  document.getElementById('select-month').innerHTML = '<option value="">Semua</option>' + 
+    months.map(m => `<option value="${m}">${m}</option>`).join('');
+  
+  const html = requests.map(r => {
+    const date = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleDateString('id-ID') : '-';
+    return `
+      <div class="border-b py-3 flex justify-between text-sm">
+        <div><strong>${r.title}</strong> - ${r.branch}</div>
+        <div>${date}</div>
+      </div>`;
+  }).join('');
+  
+  container.innerHTML = html || '<p class="text-center text-slate-500 py-10">Belum ada data</p>';
+}
+
+// Init
+populateDeptDropdown();
+populateFilterDropdown();
+loadData();
+</script>
+
+</body>
+</html>
